@@ -128,6 +128,7 @@ inputs:
 outputs:
   appUrl:
     description: 'URL of the Deployed Application'
+    default: 'https://mycontainerapp.eastus.azurecontainerapps.io'
       
 runs:
   using: "composite"
