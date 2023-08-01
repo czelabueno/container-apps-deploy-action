@@ -125,9 +125,9 @@ inputs:
     required: false
     default: false
 outputs:
-  app-url:
+  appUrl:
     description: 'URL of the Deployed Application'
-    value: ${{ steps.create-containerapp-from-args.outputs.app-url }}
+    value: ${{ steps.set-app-url-output-value.outputs.app-url }}
 runs:
   using: "composite"
   steps:
@@ -534,27 +534,39 @@ runs:
       if: ${{ env.CA_GH_ACTION_YAML_PROVIDED == 'true' && env.CA_GH_ACTION_RESOURCE_EXISTS == 'false' }}
       shell: bash
       run: |
-        CA_GH_ACTION_CONTAINER_APP_URL=$(az containerapp create -g ${{ env.CA_GH_ACTION_RESOURCE_GROUP }} -n ${{ inputs.containerAppName }} --yaml ${{ inputs.yamlConfigPath }} --query properties.configuration.ingress.fqdn -o tsv)
-        echo "app-url=https://$CA_GH_ACTION_CONTAINER_APP_URL"  >> $GITHUB_OUTPUT
+        CA_GH_ACTION_APP_FQDN_OUTPUT=$(az containerapp create \
+          -g ${{ env.CA_GH_ACTION_RESOURCE_GROUP }} \
+          -n ${{ inputs.containerAppName }} \
+          --yaml ${{ inputs.yamlConfigPath }} \
+          --query properties.configuration.ingress.fqdn -o tsv)
+        echo "CA_GH_ACTION_APP_FQDN_OUTPUT=${CA_GH_ACTION_APP_FQDN_OUTPUT}"  >> $GITHUB_ENV
 
     - name: Create the Container App from provided arguments
-      id: create-containerapp-from-args
       if: ${{ env.CA_GH_ACTION_YAML_PROVIDED != 'true' && env.CA_GH_ACTION_RESOURCE_EXISTS == 'false' }}
       shell: bash
       run: |
-        CA_GH_ACTION_CONTAINER_APP_URL=$(az containerapp create -g ${{ env.CA_GH_ACTION_RESOURCE_GROUP }} -n ${{ inputs.containerAppName }} -i ${{ env.CA_GH_ACTION_IMAGE_TO_DEPLOY }} --environment ${{ env.CA_GH_ACTION_CONTAINER_APP_ENVIRONMENT }} ${{ env.CA_GH_ACTION_INGRESS_ARG }} ${{ env.CA_GH_ACTION_TARGET_PORT_ARG }} ${{ env.CA_GH_ACTION_REGISTRY_LOGIN_ARG }} ${{ env.CA_GH_ACTION_CONTAINER_APP_ENVIRONMENT_VARIABLES_ARG }} --query properties.configuration.ingress.fqdn -o tsv)
-        echo "app-url=https://$CA_GH_ACTION_CONTAINER_APP_URL"  >> $GITHUB_OUTPUT
+        CA_GH_ACTION_APP_FQDN_OUTPUT=$(az containerapp create \
+          -g ${{ env.CA_GH_ACTION_RESOURCE_GROUP }} \
+          -n ${{ inputs.containerAppName }} \
+          -i ${{ env.CA_GH_ACTION_IMAGE_TO_DEPLOY }} \
+          --environment ${{ env.CA_GH_ACTION_CONTAINER_APP_ENVIRONMENT }} \
+          ${{ env.CA_GH_ACTION_INGRESS_ARG }} \
+          ${{ env.CA_GH_ACTION_TARGET_PORT_ARG }} \
+          ${{ env.CA_GH_ACTION_REGISTRY_LOGIN_ARG }} \
+          ${{ env.CA_GH_ACTION_CONTAINER_APP_ENVIRONMENT_VARIABLES_ARG }} \
+          --query properties.configuration.ingress.fqdn -o tsv)
+        echo "CA_GH_ACTION_APP_FQDN_OUTPUT=${CA_GH_ACTION_APP_FQDN_OUTPUT}"  >> $GITHUB_ENV
 
     - name: Update the existing Container App from a YAML configuration file
       if: ${{ env.CA_GH_ACTION_YAML_PROVIDED == 'true' && env.CA_GH_ACTION_RESOURCE_EXISTS == 'true' }}
       shell: bash
       run: |
-        CA_GH_ACTION_CONTAINER_APP_URL=$(az containerapp update \
+        CA_GH_ACTION_APP_FQDN_OUTPUT=$(az containerapp update \
           -g ${{ env.CA_GH_ACTION_RESOURCE_GROUP }} \
           -n ${{ inputs.containerAppName }} \
           --yaml ${{ inputs.yamlConfigPath }} \ 
           --query properties.configuration.ingress.fqdn -o tsv)
-        echo "app-url=https://$CA_GH_ACTION_CONTAINER_APP_URL"  >> $GITHUB_OUTPUT
+        echo "CA_GH_ACTION_APP_FQDN_OUTPUT=${CA_GH_ACTION_APP_FQDN_OUTPUT}"  >> $GITHUB_ENV
 
     - name: Determine whether or not 'update' or 'up' should be used
       if: ${{ env.CA_GH_ACTION_YAML_PROVIDED != 'true' && env.CA_GH_ACTION_RESOURCE_EXISTS == 'true' && (inputs.targetPort != '' || inputs.ingress != '') }}
@@ -578,13 +590,13 @@ runs:
       if: ${{ env.CA_GH_ACTION_USE_UP != 'true' && env.CA_GH_ACTION_YAML_PROVIDED != 'true' && env.CA_GH_ACTION_RESOURCE_EXISTS == 'true' }}
       shell: bash
       run: |
-        CA_GH_ACTION_CONTAINER_APP_URL=$(az containerapp update \
+        CA_GH_ACTION_APP_FQDN_OUTPUT=$(az containerapp update \
           -g ${{ env.CA_GH_ACTION_RESOURCE_GROUP }} \
           -n ${{ inputs.containerAppName }} \
           -i ${{ env.CA_GH_ACTION_IMAGE_TO_DEPLOY }} \
-          ${{ env.CA_GH_ACTION_CONTAINER_APP_ENVIRONMENT_VARIABLES_ARG }} \ 
+          ${{ env.CA_GH_ACTION_CONTAINER_APP_ENVIRONMENT_VARIABLES_ARG }} \
           --query properties.configuration.ingress.fqdn -o tsv)
-        echo "app-url=https://$CA_GH_ACTION_CONTAINER_APP_URL"  >> $GITHUB_OUTPUT
+        echo "CA_GH_ACTION_APP_FQDN_OUTPUT=${CA_GH_ACTION_APP_FQDN_OUTPUT}"  >> $GITHUB_ENV
 
     - name: Reset the ingress argument environment variable if it wasn't provided (use default ingress value)
       if: ${{ inputs.ingress == '' && env.CA_GH_ACTION_YAML_PROVIDED != 'true' && env.CA_GH_ACTION_RESOURCE_EXISTS == 'true' }}
@@ -667,3 +679,9 @@ runs:
           mcr.microsoft.com/oryx/cli:debian-buster-20230207.2 \
           /bin/bash \
           -c "oryx telemetry --event-name 'ContainerAppsGitHubAction' ${{ env.CA_GH_ACTION_LENGTH_MILLISECONDS_ARG }} ${{ env.CA_GH_ACTION_SCENARIO_ARG }} ${{ env.CA_GH_ACTION_RESULT_ARG }}"
+
+    - name: Set app url output value for creation and updating steps
+      id: set-app-url-output-value
+      if: ${{ env.CA_GH_ACTION_APP_FQDN_OUTPUT != '' }}
+      shell: bash
+      run: echo "app-url=https://${{ env.CA_GH_ACTION_APP_FQDN_OUTPUT }}"  >> $GITHUB_OUTPUT
