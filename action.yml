@@ -127,6 +127,7 @@ inputs:
 outputs:
   app-url:
     description: 'URL of the Deployed Application'
+    value: ${{ steps.create-containerapp-from-args.outputs.app-url }}
 runs:
   using: "composite"
   steps:
@@ -537,6 +538,7 @@ runs:
         echo "app-url=https://$CA_GH_ACTION_CONTAINER_APP_URL"  >> $GITHUB_OUTPUT
 
     - name: Create the Container App from provided arguments
+      id: create-containerapp-from-args
       if: ${{ env.CA_GH_ACTION_YAML_PROVIDED != 'true' && env.CA_GH_ACTION_RESOURCE_EXISTS == 'false' }}
       shell: bash
       run: |
